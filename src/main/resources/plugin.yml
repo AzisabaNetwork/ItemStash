@@ -1,0 +1,8 @@
+name: ItemStash
+version: @version@
+main: net.azisaba.itemstash.ItemStash
+author: Azisaba Network
+api-version: 1.15
+commands:
+  pickupstash:
+    permission: itemstash.pickupstash
