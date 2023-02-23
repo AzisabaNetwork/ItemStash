@@ -1,0 +1,21 @@
+database:
+  # (scheme)://(host):(port)/(database)
+
+  #driver: net.azisaba.itemstash.libs.org.mariadb.jdbc.Driver
+  scheme: jdbc:mariadb
+  hostname: localhost
+  port: 3306
+  name: lifecore
+  username: lifecore
+  password: lifecore
+  properties:
+    useSSL: true
+    verifyServerCertificate: true
+    prepStmtCacheSize: 250
+    prepStmtCacheSqlLimit: 2048
+    cachePrepStmts: true
+    useServerPrepStmts: true
+    socketTimeout: 30000 # milliseconds
+    useLocalSessionState: true
+    rewriteBatchedStatements: true
+    maintainTimeStats: false

@@ -31,11 +31,13 @@ public class PickupStashCommand implements TabExecutor {
             player.sendMessage(ChatColor.RED + "Stashは空です。");
             return true;
         }
-        if (itemStash.dumpStash(player)) {
-            player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。");
-        } else {
-            player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。");
-        }
+        itemStash.dumpStash(player).thenAccept(result -> {
+            if (result) {
+                player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。");
+            } else {
+                player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。");
+            }
+        });
         return true;
     }
 

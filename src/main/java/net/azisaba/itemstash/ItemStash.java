@@ -6,6 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public interface ItemStash {
     static @NotNull ItemStash getInstance() {
@@ -19,12 +20,18 @@ public interface ItemStash {
      */
     void addItemToStash(@NotNull UUID player, @NotNull ItemStack itemStack);
 
+    /**
+     * Get stash item count. This method blocks until the operation is complete.
+     * @param player player's uuid
+     * @return stash item count
+     */
     int getStashItemCount(@NotNull UUID player);
 
     /**
      * Attempt to remove item from stash and give it to player. This method blocks until the operation is complete.
+     *
      * @param player player's uuid
      * @return true if all items were removed, false if there are still items in stash
      */
-    boolean dumpStash(@NotNull Player player);
+    CompletableFuture<Boolean> dumpStash(@NotNull Player player);
 }

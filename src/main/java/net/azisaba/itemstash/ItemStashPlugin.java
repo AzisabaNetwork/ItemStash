@@ -10,15 +10,23 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 public class ItemStashPlugin extends JavaPlugin implements ItemStash {
+    private final Executor sync = r -> Bukkit.getScheduler().runTask(this, r);
+    private final Executor async = r -> Bukkit.getScheduler().runTaskAsynchronously(this, r);
+
     @Override
     public void onEnable() {
         DatabaseConfig databaseConfig = new DatabaseConfig(Objects.requireNonNull(getConfig().getConfigurationSection("database"), "database"));
@@ -77,30 +85,41 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     }
 
     @Override
-    public boolean dumpStash(@NotNull Player player) {
-        List<ItemStack> items = new ArrayList<>();
-        try {
-            DBConnector.runPrepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ?", statement -> {
-                statement.setString(1, player.getUniqueId().toString());
-                try (ResultSet rs = statement.executeQuery()) {
-                    while (rs.next()) {
-                        items.add(ItemStack.deserializeBytes(rs.getBytes("item")));
+    public CompletableFuture<Boolean> dumpStash(@NotNull Player player) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<ItemStack> items = new ArrayList<>();
+            try {
+                try (Connection connection = DBConnector.getConnection()) {
+                    Statement statement = connection.createStatement();
+                    statement.executeUpdate("LOCK TABLES `stashes` WRITE");
+                    try {
+                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ?")) {
+                            stmt.setString(1, player.getUniqueId().toString());
+                            try (ResultSet rs = stmt.executeQuery()) {
+                                while (rs.next()) {
+                                    items.add(ItemStack.deserializeBytes(rs.getBytes("item")));
+                                }
+                            }
+                        }
+                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ?")) {
+                            stmt.setString(1, player.getUniqueId().toString());
+                            stmt.executeUpdate();
+                        }
+                    } finally {
+                        statement.executeUpdate("UNLOCK TABLES");
                     }
                 }
-            });
-            DBConnector.runPrepareStatement("DELETE FROM `stashes` WHERE `uuid` = ?", statement -> {
-                statement.setString(1, player.getUniqueId().toString());
-                statement.executeUpdate();
-            });
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-        //noinspection ConstantValue
-        if (items.isEmpty()) {
-            return true;
-        }
-        Collection<ItemStack> notFit = player.getInventory().addItem(items.toArray(new ItemStack[0])).values();
-        notFit.forEach((itemStack) -> addItemToStash(player.getUniqueId(), itemStack));
-        return notFit.isEmpty();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+            return items;
+        }, async).thenApplyAsync(items -> {
+            if (items.isEmpty()) {
+                return true;
+            }
+            Collection<ItemStack> notFit = player.getInventory().addItem(items.toArray(new ItemStack[0])).values();
+            notFit.forEach((itemStack) -> addItemToStash(player.getUniqueId(), itemStack));
+            return notFit.isEmpty();
+        }, sync);
     }
 }

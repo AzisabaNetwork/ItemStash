@@ -56,8 +56,8 @@ tasks {
     }
 
     shadowJar {
-        relocate("org.mariadb.jdbc", "net.azisaba.lifepvelevel.libs.org.mariadb.jdbc")
-        relocate("com.zaxxer.hikari", "net.azisaba.lifepvelevel.libs.com.zaxxer.hikari")
+        relocate("org.mariadb.jdbc", "net.azisaba.itemstash.libs.org.mariadb.jdbc")
+        relocate("com.zaxxer.hikari", "net.azisaba.itemstash.libs.com.zaxxer.hikari")
     }
 }
 
