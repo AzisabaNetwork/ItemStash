@@ -9,7 +9,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
+import org.mariadb.jdbc.MariaDbBlob;
 
+import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -29,6 +31,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
         DatabaseConfig databaseConfig = new DatabaseConfig(Objects.requireNonNull(getConfig().getConfigurationSection("database"), "database"));
         try {
             DBConnector.init(databaseConfig);
@@ -59,7 +62,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
         try {
             DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`) VALUES (?, ?)", statement -> {
                 statement.setString(1, player.toString());
-                statement.setBytes(2, itemStack.serializeAsBytes());
+                statement.setBlob(2, new MariaDbBlob(itemStack.serializeAsBytes()));
                 statement.executeUpdate();
             });
         } catch (SQLException e) {
@@ -97,7 +100,9 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                             stmt.setString(1, player.getUniqueId().toString());
                             try (ResultSet rs = stmt.executeQuery()) {
                                 while (rs.next()) {
-                                    items.add(ItemStack.deserializeBytes(rs.getBytes("item")));
+                                    Blob blob = rs.getBlob("item");
+                                    byte[] bytes = blob.getBytes(1, (int) blob.length());
+                                    items.add(ItemStack.deserializeBytes(bytes));
                                 }
                             }
                         }

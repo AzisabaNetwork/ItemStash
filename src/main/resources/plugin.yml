@@ -1,6 +1,6 @@
 name: ItemStash
 version: @version@
-main: net.azisaba.itemstash.ItemStash
+main: net.azisaba.itemstash.ItemStashPlugin
 author: Azisaba Network
 api-version: 1.15
 commands:
