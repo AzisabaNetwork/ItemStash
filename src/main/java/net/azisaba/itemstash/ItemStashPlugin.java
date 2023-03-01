@@ -3,6 +3,7 @@ package net.azisaba.itemstash;
 import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.sql.DBConnector;
 import net.azisaba.itemstash.sql.DatabaseConfig;
+import net.azisaba.itemstash.util.ItemUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -60,6 +61,8 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     @Override
     public void addItemToStash(@NotNull UUID player, @NotNull ItemStack itemStack) {
         try {
+            getLogger().info("Adding item to stash of " + player + ":");
+            ItemUtil.log(getLogger(), itemStack);
             DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`) VALUES (?, ?)", statement -> {
                 statement.setString(1, player.toString());
                 statement.setBlob(2, new MariaDbBlob(itemStack.serializeAsBytes()));
@@ -122,7 +125,11 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
             if (items.isEmpty()) {
                 return true;
             }
+            getLogger().info("Attempting to give " + items.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + "):");
+            ItemUtil.log(getLogger(), items);
             Collection<ItemStack> notFit = player.getInventory().addItem(items.toArray(new ItemStack[0])).values();
+            getLogger().info("Re-adding " + notFit.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + ")'s stash:");
+            ItemUtil.log(getLogger(), notFit);
             notFit.forEach((itemStack) -> addItemToStash(player.getUniqueId(), itemStack));
             return notFit.isEmpty();
         }, sync);

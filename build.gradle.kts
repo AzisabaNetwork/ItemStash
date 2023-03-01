@@ -5,12 +5,13 @@ plugins {
 }
 
 group = "net.azisaba"
-version = "1.0.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://repo.papermc.io/repository/maven-public/") }
     maven { url = uri("https://hub.spigotmc.org/nexus/content/repositories/public/") }
+    maven { url = uri("https://repo.azisaba.net/repository/maven-public/") }
+    maven { url = uri("https://repo.papermc.io/repository/maven-public/") }
 }
 
 dependencies {
@@ -18,6 +19,7 @@ dependencies {
     implementation("org.mariadb.jdbc:mariadb-java-client:3.0.6")
     compileOnly("com.destroystokyo.paper:paper-api:1.15.2-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:24.0.0")
+    compileOnly("net.azisaba:LifeCore:6.0.1")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
 }

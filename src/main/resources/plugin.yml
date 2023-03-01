@@ -3,6 +3,8 @@ version: @version@
 main: net.azisaba.itemstash.ItemStashPlugin
 author: Azisaba Network
 api-version: 1.15
+softdepend:
+  - LifeCore
 commands:
   pickupstash:
     permission: itemstash.pickupstash
