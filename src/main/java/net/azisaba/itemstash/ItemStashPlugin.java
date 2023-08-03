@@ -94,24 +94,29 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     public CompletableFuture<Boolean> dumpStash(@NotNull Player player) {
         return CompletableFuture.supplyAsync(() -> {
             List<ItemStack> items = new ArrayList<>();
+            List<byte[]> byteList = new ArrayList<>();
             try {
                 try (Connection connection = DBConnector.getConnection()) {
                     Statement statement = connection.createStatement();
                     statement.executeUpdate("LOCK TABLES `stashes` WRITE");
                     try {
-                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ?")) {
+                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? LIMIT 100")) {
                             stmt.setString(1, player.getUniqueId().toString());
                             try (ResultSet rs = stmt.executeQuery()) {
                                 while (rs.next()) {
                                     Blob blob = rs.getBlob("item");
                                     byte[] bytes = blob.getBytes(1, (int) blob.length());
                                     items.add(ItemStack.deserializeBytes(bytes));
+                                    byteList.add(bytes);
                                 }
                             }
                         }
-                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ?")) {
-                            stmt.setString(1, player.getUniqueId().toString());
-                            stmt.executeUpdate();
+                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ? LIMIT 1")) {
+                            for (byte[] bytes : byteList) {
+                                stmt.setString(1, player.getUniqueId().toString());
+                                stmt.setBlob(2, new MariaDbBlob(bytes));
+                                stmt.executeUpdate();
+                            }
                         }
                     } finally {
                         statement.executeUpdate("UNLOCK TABLES");
