@@ -126,7 +126,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                     Statement statement = connection.createStatement();
                     statement.executeUpdate("LOCK TABLES `stashes` WRITE");
                     try {
-                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? ORDER BY `expires_at` LIMIT 100")) {
+                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 100")) {
                             stmt.setString(1, player.getUniqueId().toString());
                             try (ResultSet rs = stmt.executeQuery()) {
                                 while (rs.next()) {
