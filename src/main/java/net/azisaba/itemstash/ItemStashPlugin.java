@@ -18,6 +18,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 public class ItemStashPlugin extends JavaPlugin implements ItemStash {
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private final Executor sync = r -> Bukkit.getScheduler().runTask(this, r);
     private final Executor async = r -> Bukkit.getScheduler().runTaskAsynchronously(this, r);
 
@@ -35,7 +37,8 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
         saveDefaultConfig();
         DatabaseConfig databaseConfig = new DatabaseConfig(Objects.requireNonNull(getConfig().getConfigurationSection("database"), "database"));
         try {
-            DBConnector.init(databaseConfig);
+            int rows = DBConnector.init(databaseConfig);
+            getLogger().info("Removed " + rows + " expired items");
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -47,8 +50,13 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                 if (count == 0) {
                     continue;
                 }
+                long exp = getNearestExpirationTime(player.getUniqueId());
                 player.sendMessage(ChatColor.GOLD + "Stashに" + ChatColor.RED + count + ChatColor.GOLD + "個のアイテムがあります！");
                 player.sendMessage(ChatColor.GOLD + "受け取るには" + ChatColor.AQUA + "/pickupstash" + ChatColor.GOLD + "を実行してください。");
+                if (exp > 0) {
+                    String expString = DATE_FORMAT.format(exp);
+                    player.sendMessage(ChatColor.GOLD + "直近の有効期限は" + ChatColor.RED + expString + ChatColor.GOLD + "です。");
+                }
             }
         }, 20 * 60 * 5, 20 * 60 * 5);
     }
@@ -59,13 +67,14 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     }
 
     @Override
-    public void addItemToStash(@NotNull UUID player, @NotNull ItemStack itemStack) {
+    public void addItemToStash(@NotNull UUID player, @NotNull ItemStack itemStack, long expiresAt) {
         try {
             getLogger().info("Adding item to stash of " + player + ":");
             ItemUtil.log(getLogger(), itemStack);
-            DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`) VALUES (?, ?)", statement -> {
+            DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`, `expires_at`) VALUES (?, ?, ?)", statement -> {
                 statement.setString(1, player.toString());
                 statement.setBlob(2, new MariaDbBlob(itemStack.serializeAsBytes()));
+                statement.setLong(3, expiresAt);
                 statement.executeUpdate();
             });
         } catch (SQLException e) {
@@ -91,6 +100,23 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     }
 
     @Override
+    public long getNearestExpirationTime(@NotNull UUID player) {
+        try {
+            return DBConnector.getPrepareStatement("SELECT `expires_at` FROM `stashes` WHERE `uuid` = ? AND `expires_at` != -1 ORDER BY `expires_at` LIMIT 1", statement -> {
+                statement.setString(1, player.toString());
+                try (ResultSet rs = statement.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getLong(1);
+                    }
+                    return 0L;
+                }
+            });
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     public CompletableFuture<Boolean> dumpStash(@NotNull Player player) {
         return CompletableFuture.supplyAsync(() -> {
             List<ItemStack> items = new ArrayList<>();
@@ -100,7 +126,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                     Statement statement = connection.createStatement();
                     statement.executeUpdate("LOCK TABLES `stashes` WRITE");
                     try {
-                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? LIMIT 100")) {
+                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? ORDER BY `expires_at` LIMIT 100")) {
                             stmt.setString(1, player.getUniqueId().toString());
                             try (ResultSet rs = stmt.executeQuery()) {
                                 while (rs.next()) {

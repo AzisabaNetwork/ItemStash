@@ -19,9 +19,10 @@ public class DBConnector {
 
     /**
      * Initializes the data source and pool.
+     * @return affected rows when deleting expired stashes
      * @throws SQLException if an error occurs while initializing the pool
      */
-    public static void init(@NotNull DatabaseConfig databaseConfig) throws SQLException {
+    public static int init(@NotNull DatabaseConfig databaseConfig) throws SQLException {
         new Driver();
         HikariConfig config = new HikariConfig();
         if (databaseConfig.driver() != null) {
@@ -33,12 +34,17 @@ public class DBConnector {
         config.setDataSourceProperties(databaseConfig.properties());
         dataSource = new HikariDataSource(config);
         createTables();
+        return getPrepareStatement("DELETE FROM `stashes` WHERE `expires_at` > 0 AND `expires_at` < ?", stmt -> {
+            stmt.setLong(1, System.currentTimeMillis());
+            return stmt.executeUpdate();
+        });
     }
 
     public static void createTables() throws SQLException {
         runPrepareStatement("CREATE TABLE IF NOT EXISTS `stashes` (\n" +
                 "  `uuid` VARCHAR(36) NOT NULL,\n" +
-                "  `item` MEDIUMBLOB NOT NULL\n" +
+                "  `item` MEDIUMBLOB NOT NULL,\n" +
+                "  `expires_at` BIGINT NOT NULL DEFAULT -1\n" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;", PreparedStatement::execute);
     }
 
