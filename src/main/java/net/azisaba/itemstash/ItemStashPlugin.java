@@ -137,7 +137,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                                 }
                             }
                         }
-                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ? LIMIT 1")) {
+                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 1")) {
                             for (byte[] bytes : byteList) {
                                 stmt.setString(1, player.getUniqueId().toString());
                                 stmt.setBlob(2, new MariaDbBlob(bytes));
