@@ -1,6 +1,8 @@
 package net.azisaba.itemstash.command;
 
 import net.azisaba.itemstash.ItemStash;
+import net.azisaba.itemstash.ItemStashPlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -9,10 +11,10 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class PickupStashCommand implements TabExecutor {
+    private static final Set<UUID> PROCESSING = Collections.synchronizedSet(new HashSet<>());
     private final ItemStash itemStash;
 
     public PickupStashCommand(@NotNull ItemStash itemStash) {
@@ -26,16 +28,31 @@ public class PickupStashCommand implements TabExecutor {
             return true;
         }
         Player player = (Player) sender;
-        int count = itemStash.getStashItemCount(player.getUniqueId());
-        if (count == 0) {
-            player.sendMessage(ChatColor.RED + "Stashは空です。");
+        if (PROCESSING.contains(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "前回の処理が継続中です。しばらくしてからお試しください。");
             return true;
         }
-        itemStash.dumpStash(player).thenAccept(result -> {
-            if (result) {
-                player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。");
-            } else {
-                player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。");
+        PROCESSING.add(player.getUniqueId());
+        player.sendMessage(ChatColor.GRAY + "処理中です...");
+        Bukkit.getScheduler().runTaskAsynchronously((ItemStashPlugin) ItemStash.getInstance(), () -> {
+            try {
+                long start = System.currentTimeMillis();
+                int count = itemStash.getStashItemCount(player.getUniqueId());
+                if (count == 0) {
+                    long total = System.currentTimeMillis() - start;
+                    player.sendMessage(ChatColor.RED + "Stashは空です。" + ChatColor.DARK_GRAY + " [" + total + "ms]");
+                    return;
+                }
+                itemStash.dumpStash(player).thenAccept(result -> {
+                    long total = System.currentTimeMillis() - start;
+                    if (result) {
+                        player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。" + ChatColor.DARK_GRAY + " [" + total + "ms]");
+                    } else {
+                        player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。" + ChatColor.DARK_GRAY + " [" + total + "ms]");
+                    }
+                });
+            } finally {
+                PROCESSING.remove(player.getUniqueId());
             }
         });
         return true;
