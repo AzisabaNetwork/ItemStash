@@ -45,10 +45,10 @@ public class PickupStashCommand implements TabExecutor {
                 }
                 itemStash.dumpStash(player).thenAccept(result -> {
                     long total = System.currentTimeMillis() - start;
-                    if (result) {
-                        player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。" + ChatColor.DARK_GRAY + " [" + total + "ms]");
+                    if (result && count <= 100) {
+                        player.sendMessage(ChatColor.GREEN + "アイテムをすべて受け取りました。(処理前の個数: " + count + ")" + ChatColor.DARK_GRAY + " [" + total + "ms]");
                     } else {
-                        player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。" + ChatColor.DARK_GRAY + " [" + total + "ms]");
+                        player.sendMessage(ChatColor.RED + "一部のアイテムを受け取れませんでした。(処理前の個数: " + count + ")" + ChatColor.DARK_GRAY + " [" + total + "ms]");
                     }
                 });
             } finally {

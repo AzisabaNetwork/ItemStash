@@ -8,3 +8,5 @@ softdepend:
 commands:
   pickupstash:
     permission: itemstash.pickupstash
+  itemstash:
+    permission: itemstash.itemstash

@@ -1,5 +1,6 @@
 package net.azisaba.itemstash;
 
+import net.azisaba.itemstash.command.ItemStashCommand;
 import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.sql.DBConnector;
 import net.azisaba.itemstash.sql.DatabaseConfig;
@@ -40,6 +41,8 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
         }
         Objects.requireNonNull(Bukkit.getPluginCommand("pickupstash"))
                 .setExecutor(new PickupStashCommand(this));
+        Objects.requireNonNull(Bukkit.getPluginCommand("itemstash"))
+                .setExecutor(new ItemStashCommand(this));
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 int count = getStashItemCount(player.getUniqueId());
