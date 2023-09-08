@@ -8,11 +8,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.mariadb.jdbc.Driver;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.Objects;
+import java.util.UUID;
 
 public class DBConnector {
     private static @Nullable HikariDataSource dataSource;
@@ -44,7 +42,12 @@ public class DBConnector {
         runPrepareStatement("CREATE TABLE IF NOT EXISTS `stashes` (\n" +
                 "  `uuid` VARCHAR(36) NOT NULL,\n" +
                 "  `item` MEDIUMBLOB NOT NULL,\n" +
-                "  `expires_at` BIGINT NOT NULL DEFAULT -1\n" +
+                "  `expires_at` BIGINT NOT NULL DEFAULT -1,\n" +
+                "  `true_amount` INT NOT NULL DEFAULT -1\n" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;", PreparedStatement::execute);
+        runPrepareStatement("CREATE TABLE IF NOT EXISTS `stashes_players` (\n" +
+                "  `uuid` VARCHAR(36) NOT NULL PRIMARY KEY,\n" +
+                "  `operation_in_progress` TINYINT(1) NOT NULL DEFAULT 0" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;", PreparedStatement::execute);
     }
 
@@ -102,6 +105,27 @@ public class DBConnector {
             try (Statement statement = connection.createStatement()) {
                 action.accept(statement);
             }
+        });
+    }
+
+    public static boolean isOperationInProgress(@NotNull UUID uuid) throws SQLException {
+        return getPrepareStatement("SELECT `operation_in_progress` FROM `stashes_players` WHERE `uuid` = ?", ps -> {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getBoolean("operation_in_progress");
+                } else {
+                    return false;
+                }
+            }
+        });
+    }
+
+    public static void setOperationInProgress(@NotNull UUID uuid, boolean flag) throws SQLException {
+        runPrepareStatement("INSERT INTO `stashes_players` (`uuid`, `operation_in_progress`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `operation_in_progress` = VALUES(`operation_in_progress`)", ps -> {
+            ps.setString(1, uuid.toString());
+            ps.setBoolean(2, flag);
+            ps.executeUpdate();
         });
     }
 

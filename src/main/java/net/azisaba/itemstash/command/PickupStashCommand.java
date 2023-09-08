@@ -17,7 +17,7 @@ import java.sql.*;
 import java.util.*;
 
 public class PickupStashCommand implements TabExecutor {
-    private static final Set<UUID> PROCESSING = Collections.synchronizedSet(new HashSet<>());
+    public /* internal */ static final Set<UUID> PROCESSING = Collections.synchronizedSet(new HashSet<>());
     private final ItemStashPlugin plugin;
 
     public PickupStashCommand(@NotNull ItemStashPlugin plugin) {
@@ -31,28 +31,38 @@ public class PickupStashCommand implements TabExecutor {
             return true;
         }
         Player player = (Player) sender;
-        if (PROCESSING.contains(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "前回の処理が継続中です。しばらくしてからお試しください。");
-            return true;
-        }
         UUID targetUUID = player.getUniqueId();
         if (sender.hasPermission("itemstash.others") && args.length >= 1) {
             targetUUID = UUID.fromString(args[0]);
         }
-        PROCESSING.add(player.getUniqueId());
-        player.sendMessage(ChatColor.GRAY + "処理中です...");
+        if (PROCESSING.contains(targetUUID)) {
+            player.sendMessage(ChatColor.RED + "前回の処理が継続中です。しばらくしてからお試しください。(Local)");
+            return true;
+        }
+        PROCESSING.add(targetUUID);
         UUID finalTargetUUID = targetUUID;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (Connection connection = DBConnector.getConnection()) {
+                if (DBConnector.isOperationInProgress(finalTargetUUID)) {
+                    player.sendMessage(ChatColor.RED + "前回の処理が継続中です。しばらくしてからお試しください。(Server)");
+                    return;
+                }
+                player.sendMessage(ChatColor.GRAY + "処理中です...");
                 List<Map.Entry<ItemStack, Long>> items = new ArrayList<>();
-                try (PreparedStatement stmt = connection.prepareStatement("SELECT `item`, `expires_at` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at`")) {
+                try (PreparedStatement stmt = connection.prepareStatement("SELECT `item`, `expires_at`, `true_amount` FROM `stashes` WHERE `uuid` = ?")) {
                     stmt.setString(1, finalTargetUUID.toString());
                     try (ResultSet rs = stmt.executeQuery()) {
                         while (rs.next()) {
                             Blob blob = rs.getBlob("item");
                             byte[] bytes = blob.getBytes(1, (int) blob.length());
                             long expiresAt = rs.getLong("expires_at");
-                            items.add(new AbstractMap.SimpleImmutableEntry<>(ItemStack.deserializeBytes(bytes), expiresAt));
+                            int trueAmount = rs.getInt("true_amount");
+                            ItemStack item = ItemStack.deserializeBytes(bytes);
+                            if (trueAmount > 0) {
+                                item.setAmount(trueAmount);
+                            }
+                            //plugin.getLogger().info("Item: " + item);
+                            items.add(new AbstractMap.SimpleImmutableEntry<>(item, expiresAt));
                         }
                     }
                 }
@@ -60,7 +70,7 @@ public class PickupStashCommand implements TabExecutor {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             } finally {
-                PROCESSING.remove(player.getUniqueId());
+                PROCESSING.remove(finalTargetUUID);
             }
         });
         return true;

@@ -1,9 +1,12 @@
 package net.azisaba.itemstash.gui;
 
+import net.azisaba.itemstash.ItemStash;
 import net.azisaba.itemstash.ItemStashPlugin;
+import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.sql.DBConnector;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -48,6 +51,10 @@ public class PickupStashScreen implements InventoryHolder {
     public void initInventory() {
         for (int i = 0; i < items.subList(0, Math.min(53, items.size())).size(); i++) {
             ItemStack screenItem = items.get(i).getKey().clone();
+            if (screenItem.getItemMeta() == null) {
+                ((ItemStashPlugin) ItemStash.getInstance()).getSLF4JLogger().info("{} (#{}) does not have item meta", screenItem, i);
+                continue;
+            }
             long expiresAt = items.get(i).getValue();
             List<String> lore = screenItem.getLore();
             if (lore == null) {
@@ -97,6 +104,7 @@ public class PickupStashScreen implements InventoryHolder {
             if (screen.items.size() <= e.getSlot()) {
                 return;
             }
+            PickupStashCommand.PROCESSING.add(e.getWhoClicked().getUniqueId());
             ItemStack stack = screen.items.get(e.getSlot()).getKey();
             int originalAmount = stack.getAmount();
             screen.acceptingClick = false;
@@ -107,20 +115,22 @@ public class PickupStashScreen implements InventoryHolder {
                 long start = System.currentTimeMillis();
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                     try (Connection connection = DBConnector.getConnection()) {
+                        DBConnector.setOperationInProgress(e.getWhoClicked().getUniqueId(), true);
                         List<byte[]> toRemove = new ArrayList<>();
-                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at`")) {
+                        try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ?")) {
                             stmt.setString(1, e.getWhoClicked().getUniqueId().toString());
                             try (ResultSet rs = stmt.executeQuery()) {
                                 while (rs.next()) {
                                     Blob blob = rs.getBlob("item");
                                     byte[] bytes = blob.getBytes(1, (int) blob.length());
-                                    if (ItemStack.deserializeBytes(bytes).isSimilar(stack)) {
+                                    if (ItemStack.deserializeBytes(bytes).isSimilar(stack) && toRemove.stream().noneMatch(arr -> Arrays.equals(arr, bytes))) {
                                         toRemove.add(bytes);
                                     }
                                 }
                             }
                         }
-                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 1")) {
+                        plugin.getLogger().info("Collected " + toRemove.size() + " items to remove");
+                        try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ?")) {
                             for (byte[] bytes : toRemove) {
                                 stmt.setString(1, e.getWhoClicked().getUniqueId().toString());
                                 stmt.setBlob(2, new MariaDbBlob(bytes));
@@ -128,32 +138,50 @@ public class PickupStashScreen implements InventoryHolder {
                             }
                         }
                     } catch (SQLException ex) {
+                        PickupStashCommand.PROCESSING.remove(e.getWhoClicked().getUniqueId());
+                        try {
+                            DBConnector.setOperationInProgress(e.getWhoClicked().getUniqueId(), false);
+                        } catch (SQLException exc) {
+                            exc.addSuppressed(ex);
+                            throw new RuntimeException(exc);
+                        }
                         throw new RuntimeException(ex);
                     }
-                    Collection<ItemStack> items = e.getWhoClicked().getInventory().addItem(stack).values();
-                    if (items.isEmpty()) {
-                        long elapsed = System.currentTimeMillis() - start;
-                        e.getWhoClicked().sendMessage(ChatColor.GREEN + "すべてのアイテム(" + originalAmount + "個)を受け取りました。" + ChatColor.DARK_GRAY + " [" + elapsed + "ms]");
-                    } else {
-                        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                            int amount = 0;
-                            for (ItemStack item : items) {
-                                amount += item.getAmount();
-                                int mod = item.getAmount() % 64;
-                                int loopCount = item.getAmount() / 64;
-                                for (int i = 0; i < loopCount; i++) {
-                                    item.setAmount(64);
-                                    plugin.addItemToStash(e.getWhoClicked().getUniqueId(), item);
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        Collection<ItemStack> items =
+                                ((Player) e.getWhoClicked()).isOnline() ? e.getWhoClicked().getInventory().addItem(stack).values() : Collections.singleton(stack);
+                        if (items.isEmpty()) {
+                            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                                PickupStashCommand.PROCESSING.remove(e.getWhoClicked().getUniqueId());
+                                try {
+                                    DBConnector.setOperationInProgress(e.getWhoClicked().getUniqueId(), false);
+                                } catch (SQLException ex) {
+                                    plugin.getSLF4JLogger().error("Failed to set operation_in_progress state", ex);
                                 }
-                                if (mod > 0) {
-                                    item.setAmount(mod);
-                                    plugin.addItemToStash(e.getWhoClicked().getUniqueId(), item);
+                                long elapsed = System.currentTimeMillis() - start;
+                                e.getWhoClicked().sendMessage(ChatColor.GREEN + "すべてのアイテム(" + originalAmount + "個)を受け取りました。" + ChatColor.DARK_GRAY + " [" + elapsed + "ms]");
+                            });
+                        } else {
+                            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                                try {
+                                    int amount = 0;
+                                    for (ItemStack item : items) {
+                                        plugin.addItemToStash(e.getWhoClicked().getUniqueId(), item);
+                                        amount += item.getAmount();
+                                    }
+                                    long elapsed = System.currentTimeMillis() - start;
+                                    e.getWhoClicked().sendMessage(ChatColor.GOLD.toString() + amount + ChatColor.RED + "個のアイテムが受け取れませんでした。" + ChatColor.DARK_GRAY + " [" + elapsed + "ms]");
+                                } finally {
+                                    PickupStashCommand.PROCESSING.remove(e.getWhoClicked().getUniqueId());
+                                    try {
+                                        DBConnector.setOperationInProgress(e.getWhoClicked().getUniqueId(), false);
+                                    } catch (SQLException ex) {
+                                        plugin.getSLF4JLogger().error("Failed to set operation_in_progress state", ex);
+                                    }
                                 }
-                            }
-                            long elapsed = System.currentTimeMillis() - start;
-                            e.getWhoClicked().sendMessage(ChatColor.GOLD.toString() + amount + ChatColor.RED + "個のアイテムが受け取れませんでした。" + ChatColor.DARK_GRAY + " [" + elapsed + "ms]");
-                        });
-                    }
+                            });
+                        }
+                    });
                 });
             });
         }

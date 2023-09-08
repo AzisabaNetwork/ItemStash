@@ -52,7 +52,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                     continue;
                 }
                 long exp = getNearestExpirationTime(player.getUniqueId());
-                player.sendMessage(ChatColor.GOLD + "Stashに" + ChatColor.RED + count + ChatColor.GOLD + "個のアイテムがあります！");
+                player.sendMessage(ChatColor.GOLD + "Stashに" + ChatColor.RED + count + ChatColor.GOLD + "件のアイテムがあります！");
                 player.sendMessage(ChatColor.GOLD + "受け取るには" + ChatColor.AQUA + "/pickupstash" + ChatColor.GOLD + "を実行してください。");
                 if (exp > 0) {
                     String expString = DATE_FORMAT.format(exp);
@@ -72,10 +72,14 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
         try {
             getLogger().info("Adding item to stash of " + player + ":");
             ItemUtil.log(getLogger(), itemStack);
-            DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`, `expires_at`) VALUES (?, ?, ?)", statement -> {
+            DBConnector.runPrepareStatement("INSERT INTO `stashes` (`uuid`, `item`, `expires_at`, `true_amount`) VALUES (?, ?, ?, ?)", statement -> {
                 statement.setString(1, player.toString());
+                int amount = itemStack.getAmount();
+                itemStack.setAmount(Math.min(64, itemStack.getAmount()));
                 statement.setBlob(2, new MariaDbBlob(itemStack.serializeAsBytes()));
+                itemStack.setAmount(amount);
                 statement.setLong(3, expiresAt);
+                statement.setInt(4, amount);
                 statement.executeUpdate();
             });
         } catch (SQLException e) {
@@ -126,13 +130,18 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                 Statement statement = connection.createStatement();
                 statement.executeUpdate("LOCK TABLES `stashes` WRITE");
                 try {
-                    try (PreparedStatement stmt = connection.prepareStatement("SELECT `item` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 100")) {
+                    try (PreparedStatement stmt = connection.prepareStatement("SELECT `item`, `true_amount` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 100")) {
                         stmt.setString(1, player.getUniqueId().toString());
                         try (ResultSet rs = stmt.executeQuery()) {
                             while (rs.next()) {
+                                int trueAmount = rs.getInt("true_amount");
                                 Blob blob = rs.getBlob("item");
                                 byte[] bytes = blob.getBytes(1, (int) blob.length());
-                                items.add(ItemStack.deserializeBytes(bytes));
+                                ItemStack item = ItemStack.deserializeBytes(bytes);
+                                if (trueAmount > 0) {
+                                    item.setAmount(trueAmount);
+                                }
+                                items.add(item);
                                 byteList.add(bytes);
                             }
                         }
