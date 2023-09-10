@@ -10,3 +10,5 @@ commands:
     permission: itemstash.pickupstash
   itemstash:
     permission: itemstash.itemstash
+  stashnotify:
+    permission: itemstash.stashnotify

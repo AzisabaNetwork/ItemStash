@@ -2,6 +2,7 @@ package net.azisaba.itemstash;
 
 import net.azisaba.itemstash.command.ItemStashCommand;
 import net.azisaba.itemstash.command.PickupStashCommand;
+import net.azisaba.itemstash.command.StashNotifyCommand;
 import net.azisaba.itemstash.gui.PickupStashScreen;
 import net.azisaba.itemstash.sql.DBConnector;
 import net.azisaba.itemstash.sql.DatabaseConfig;
@@ -45,8 +46,18 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                 .setExecutor(new PickupStashCommand(this));
         Objects.requireNonNull(Bukkit.getPluginCommand("itemstash"))
                 .setExecutor(new ItemStashCommand(this));
+        Objects.requireNonNull(Bukkit.getPluginCommand("stashnotify"))
+                .setExecutor(new StashNotifyCommand(this));
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                try {
+                    if (DBConnector.isSuppressNotification(player.getUniqueId())) {
+                        continue;
+                    }
+                } catch (SQLException e) {
+                    getSLF4JLogger().warn("Failed to check for notification status", e);
+                    continue;
+                }
                 int count = getStashItemCount(player.getUniqueId());
                 if (count == 0) {
                     continue;
@@ -59,7 +70,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                     player.sendMessage(ChatColor.GOLD + "直近の有効期限は" + ChatColor.RED + expString + ChatColor.GOLD + "です。");
                 }
             }
-        }, 20 * 60 * 5, 20 * 60 * 5);
+        }, 20 * 60 * 10, 20 * 60 * 10);
     }
 
     @Override
