@@ -177,7 +177,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
             }
             getLogger().info("Attempting to give " + items.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + "):");
             ItemUtil.log(getLogger(), items);
-            return player.getInventory().addItem(items.toArray(new ItemStack[0])).values();
+            return ItemUtil.addItem(player.getInventory(), items.toArray(new ItemStack[0])).values();
         }, sync).thenApplyAsync(notFit -> {
             getLogger().info("Re-adding " + notFit.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + ")'s stash:");
             ItemUtil.log(getLogger(), notFit);

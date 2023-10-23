@@ -4,6 +4,7 @@ import net.azisaba.itemstash.ItemStash;
 import net.azisaba.itemstash.ItemStashPlugin;
 import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.sql.DBConnector;
+import net.azisaba.itemstash.util.ItemUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -149,7 +150,7 @@ public class PickupStashScreen implements InventoryHolder {
                     }
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         Collection<ItemStack> items =
-                                ((Player) e.getWhoClicked()).isOnline() ? e.getWhoClicked().getInventory().addItem(stack).values() : Collections.singleton(stack);
+                                ((Player) e.getWhoClicked()).isOnline() ? ItemUtil.addItem(e.getWhoClicked().getInventory(), stack).values() : Collections.singleton(stack);
                         if (items.isEmpty()) {
                             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                                 PickupStashCommand.PROCESSING.remove(e.getWhoClicked().getUniqueId());
