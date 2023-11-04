@@ -4,6 +4,7 @@ import net.azisaba.itemstash.command.ItemStashCommand;
 import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.command.StashNotifyCommand;
 import net.azisaba.itemstash.gui.PickupStashScreen;
+import net.azisaba.itemstash.listener.JoinListener;
 import net.azisaba.itemstash.sql.DBConnector;
 import net.azisaba.itemstash.sql.DatabaseConfig;
 import net.azisaba.itemstash.util.ItemUtil;
@@ -42,6 +43,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
             throw new RuntimeException(e);
         }
         Bukkit.getPluginManager().registerEvents(new PickupStashScreen.EventListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new JoinListener(this), this);
         Objects.requireNonNull(Bukkit.getPluginCommand("pickupstash"))
                 .setExecutor(new PickupStashCommand(this));
         Objects.requireNonNull(Bukkit.getPluginCommand("itemstash"))
@@ -58,19 +60,23 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
                     getSLF4JLogger().warn("Failed to check for notification status", e);
                     continue;
                 }
-                int count = getStashItemCount(player.getUniqueId());
-                if (count == 0) {
-                    continue;
-                }
-                long exp = getNearestExpirationTime(player.getUniqueId());
-                player.sendMessage(ChatColor.GOLD + "Stashに" + ChatColor.RED + count + ChatColor.GOLD + "件のアイテムがあります！");
-                player.sendMessage(ChatColor.GOLD + "受け取るには" + ChatColor.AQUA + "/pickupstash" + ChatColor.GOLD + "を実行してください。");
-                if (exp > 0) {
-                    String expString = DATE_FORMAT.format(exp);
-                    player.sendMessage(ChatColor.GOLD + "直近の有効期限は" + ChatColor.RED + expString + ChatColor.GOLD + "です。");
-                }
+                forceNotifyStash(player);
             }
         }, 20 * 60 * 10, 20 * 60 * 10);
+    }
+
+    public void forceNotifyStash(Player player) {
+        int count = getStashItemCount(player.getUniqueId());
+        if (count == 0) {
+            return;
+        }
+        long exp = getNearestExpirationTime(player.getUniqueId());
+        player.sendMessage(ChatColor.GOLD + "Stashに" + ChatColor.RED + count + ChatColor.GOLD + "件のアイテムがあります！");
+        player.sendMessage(ChatColor.GOLD + "受け取るには" + ChatColor.AQUA + "/pickupstash" + ChatColor.GOLD + "を実行してください。");
+        if (exp > 0) {
+            String expString = DATE_FORMAT.format(exp);
+            player.sendMessage(ChatColor.GOLD + "直近の有効期限は" + ChatColor.RED + expString + ChatColor.GOLD + "です。");
+        }
     }
 
     @Override
