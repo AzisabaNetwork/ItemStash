@@ -32,7 +32,7 @@ public class PickupStashCommand implements TabExecutor {
             return true;
         }
         Player player = (Player) sender;
-        if (args.length == 1 && args[0].equalsIgnoreCase("nogui")) {
+        if (false && args.length == 1 && args[0].equalsIgnoreCase("nogui")) {
             if (PROCESSING.contains(player.getUniqueId())) {
                 player.sendMessage(ChatColor.RED + "前回の処理が継続中です。しばらくしてからお試しください。(Local)");
                 return true;
