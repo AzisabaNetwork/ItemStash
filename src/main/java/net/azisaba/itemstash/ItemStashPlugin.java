@@ -30,6 +30,7 @@ import java.util.concurrent.Executor;
 
 public class ItemStashPlugin extends JavaPlugin implements ItemStash {
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    private static final int DUMP_BATCH_SIZE = 20;
     private final Executor sync = r -> Bukkit.getScheduler().runTask(this, r);
     private final Executor async = r -> Bukkit.getScheduler().runTaskAsynchronously(this, r);
 
@@ -142,55 +143,87 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
 
     @Override
     public CompletableFuture<Boolean> dumpStash(@NotNull Player player) {
-        return CompletableFuture.supplyAsync(() -> {
+        return dumpStashUntilFull(player);
+    }
+
+    private CompletableFuture<Boolean> dumpStashUntilFull(@NotNull Player player) {
+        return takeNextStashItems(player).thenCompose(entries -> {
+            if (entries.isEmpty()) {
+                return CompletableFuture.completedFuture(true);
+            }
             List<ItemStack> items = new ArrayList<>();
-            List<byte[]> byteList = new ArrayList<>();
+            for (StashEntry entry : entries) {
+                items.add(entry.item);
+            }
+            getLogger().info("Attempting to give " + items.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + "):");
+            ItemUtil.log(getLogger(), items);
+            return CompletableFuture.supplyAsync(() -> ItemUtil.addItem(player.getInventory(), items.toArray(new ItemStack[0])), sync)
+                    .thenComposeAsync(notFit -> {
+                        if (notFit.isEmpty()) {
+                            return dumpStashUntilFull(player);
+                        }
+
+                        getLogger().info("Re-adding " + notFit.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + ")'s stash:");
+                        ItemUtil.log(getLogger(), notFit.values());
+                        notFit.forEach((index, itemStack) -> addItemToStash(player.getUniqueId(), itemStack, entries.get(index).expiresAt));
+                        return CompletableFuture.completedFuture(false);
+                    }, async);
+        });
+    }
+
+    private CompletableFuture<List<StashEntry>> takeNextStashItems(@NotNull Player player) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<StashEntry> entries = new ArrayList<>();
             try (Connection connection = DBConnector.getConnection()) {
                 Statement statement = connection.createStatement();
                 statement.executeUpdate("LOCK TABLES `stashes` WRITE");
                 try {
-                    try (PreparedStatement stmt = connection.prepareStatement("SELECT `item`, `true_amount` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 20")) {
+                    try (PreparedStatement stmt = connection.prepareStatement("SELECT `item`, `expires_at`, `true_amount` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT ?")) {
                         stmt.setString(1, player.getUniqueId().toString());
+                        stmt.setInt(2, DUMP_BATCH_SIZE);
                         try (ResultSet rs = stmt.executeQuery()) {
                             while (rs.next()) {
                                 int trueAmount = rs.getInt("true_amount");
                                 Blob blob = rs.getBlob("item");
                                 byte[] bytes = blob.getBytes(1, (int) blob.length());
+                                long expiresAt = rs.getLong("expires_at");
                                 ItemStack item = ItemStack.deserializeBytes(bytes);
                                 if (trueAmount > 0) {
                                     item.setAmount(trueAmount);
                                 }
-                                items.add(item);
-                                byteList.add(bytes);
+                                entries.add(new StashEntry(item, bytes, expiresAt));
                             }
                         }
                     }
+                    if (entries.isEmpty()) {
+                        return Collections.emptyList();
+                    }
                     try (PreparedStatement stmt = connection.prepareStatement("DELETE FROM `stashes` WHERE `uuid` = ? AND `item` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT 1")) {
-                        for (byte[] bytes : byteList) {
+                        for (StashEntry entry : entries) {
                             stmt.setString(1, player.getUniqueId().toString());
-                            stmt.setBlob(2, new MariaDbBlob(bytes));
+                            stmt.setBlob(2, new MariaDbBlob(entry.bytes));
                             stmt.executeUpdate();
                         }
                     }
+                    return entries;
                 } finally {
                     statement.executeUpdate("UNLOCK TABLES");
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-            return items;
-        }, async).thenApplyAsync(items -> {
-            if (items.isEmpty()) {
-                return Collections.<ItemStack>emptyList();
-            }
-            getLogger().info("Attempting to give " + items.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + "):");
-            ItemUtil.log(getLogger(), items);
-            return ItemUtil.addItem(player.getInventory(), items.toArray(new ItemStack[0])).values();
-        }, sync).thenApplyAsync(notFit -> {
-            getLogger().info("Re-adding " + notFit.size() + " item stacks to " + player.getName() + " (" + player.getUniqueId() + ")'s stash:");
-            ItemUtil.log(getLogger(), notFit);
-            notFit.forEach((itemStack) -> addItemToStash(player.getUniqueId(), itemStack));
-            return notFit.isEmpty();
         }, async);
+    }
+
+    private static class StashEntry {
+        private final ItemStack item;
+        private final byte[] bytes;
+        private final long expiresAt;
+
+        private StashEntry(@NotNull ItemStack item, byte @NotNull [] bytes, long expiresAt) {
+            this.item = item;
+            this.bytes = bytes;
+            this.expiresAt = expiresAt;
+        }
     }
 }
