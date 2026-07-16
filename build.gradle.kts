@@ -21,7 +21,7 @@ dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.15.2-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:24.0.1")
     compileOnly("net.azisaba:LifeCore:6.9.9")
-    compileOnly("xyz.acrylicstyle:StorageBox:1.5.0")
+    compileOnly("xyz.acrylicstyle:StorageBox:1.5.6")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
 }
