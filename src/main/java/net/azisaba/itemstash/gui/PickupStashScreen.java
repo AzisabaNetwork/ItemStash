@@ -84,7 +84,7 @@ public class PickupStashScreen implements InventoryHolder {
         meta3.setDisplayName(ChatColor.RED + "" + ChatColor.BOLD + "すべて削除");
         meta3.setLore(java.util.Collections.singletonList(ChatColor.GRAY + "スタッシュ内のアイテムをすべて削除します。"));
         deleteAll.setItemMeta(meta3);
-        inventory.setItem(46, deleteAll);
+        inventory.setItem(49, deleteAll);
         ItemStack nextPage = new ItemStack(Material.ARROW);
         ItemMeta meta2 = nextPage.getItemMeta();
         meta2.setDisplayName(ChatColor.GOLD + "次のページ");
@@ -129,8 +129,7 @@ public class PickupStashScreen implements InventoryHolder {
                 }
                 return;
             }
-            if (e.getSlot() == 46) {
-                // 全削除確認画面を開く
+            if (e.getSlot() == 49) {
                 Bukkit.getScheduler().runTask(plugin, () ->
                         e.getWhoClicked().openInventory(new DeleteConfirmScreen(screen.items).getInventory()));
                 return;
