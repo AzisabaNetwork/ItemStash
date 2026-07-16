@@ -3,6 +3,7 @@ package net.azisaba.itemstash;
 import net.azisaba.itemstash.command.ItemStashCommand;
 import net.azisaba.itemstash.command.PickupStashCommand;
 import net.azisaba.itemstash.command.StashNotifyCommand;
+import net.azisaba.itemstash.gui.DeleteConfirmScreen;
 import net.azisaba.itemstash.gui.PickupStashScreen;
 import net.azisaba.itemstash.listener.JoinListener;
 import net.azisaba.itemstash.sql.DBConnector;
@@ -43,6 +44,7 @@ public class ItemStashPlugin extends JavaPlugin implements ItemStash {
             throw new RuntimeException(e);
         }
         Bukkit.getPluginManager().registerEvents(new PickupStashScreen.EventListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new DeleteConfirmScreen.EventListener(this), this);
         Bukkit.getPluginManager().registerEvents(new JoinListener(this), this);
         Objects.requireNonNull(Bukkit.getPluginCommand("pickupstash"))
                 .setExecutor(new PickupStashCommand(this));
