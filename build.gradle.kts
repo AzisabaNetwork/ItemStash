@@ -1,6 +1,6 @@
 plugins {
     java
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    id("com.gradleup.shadow") version "8.3.1"
     `maven-publish`
 }
 
@@ -71,10 +71,10 @@ publishing {
             name = "repo"
             credentials(PasswordCredentials::class)
             url = uri(
-                if (project.version.toString().endsWith("SNAPSHOT"))
-                    project.findProperty("deploySnapshotURL") ?: System.getProperty("deploySnapshotURL", "https://repo.azisaba.net/repository/maven-snapshots/")
+                if (project.version.toString().endsWith("-SNAPSHOT"))
+                    "https://maven.azisaba.net/snapshots"
                 else
-                    project.findProperty("deployReleasesURL") ?: System.getProperty("deployReleasesURL", "https://repo.azisaba.net/repository/maven-releases/")
+                    "https://maven.azisaba.net/releases"
             )
         }
     }
