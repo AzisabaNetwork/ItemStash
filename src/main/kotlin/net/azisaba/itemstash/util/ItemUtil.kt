@@ -26,6 +26,8 @@ object ItemUtil {
         val leftover = HashMap<Int, ItemStack>()
 
         outer@ for ((i, item) in items.withIndex()) {
+            // items stored on 1.15.2 need their MythicMobs ID restored before they can stack with / act as current items
+            LegacyItemRepair.repair(item)
             if (StorageBoxUtil.tryAddItemToStorageBox(inventory, item)) {
                 continue
             }
