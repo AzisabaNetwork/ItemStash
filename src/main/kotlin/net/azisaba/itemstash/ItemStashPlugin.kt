@@ -24,6 +24,7 @@ import java.sql.SQLException
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
+import java.util.logging.Level
 
 class ItemStashPlugin : JavaPlugin(), ItemStash {
     private val sync = Executor { Bukkit.getScheduler().runTask(this, it) }
@@ -112,7 +113,20 @@ class ItemStashPlugin : JavaPlugin(), ItemStash {
             val items = entries.map { it.item }
             logger.info("Attempting to give ${items.size} item stacks to ${player.name} (${player.uniqueId}):")
             ItemUtil.log(logger, items)
-            CompletableFuture.supplyAsync({ ItemUtil.addItem(player.inventory, *items.toTypedArray()) }, sync)
+            CompletableFuture.supplyAsync({
+                // the entries are already deleted from the database, so an exception here must not lose them:
+                // give items one by one and treat any item that failed as "did not fit" so it is put back
+                val notFit = HashMap<Int, ItemStack>()
+                items.forEachIndexed { index, item ->
+                    try {
+                        ItemUtil.addItem(player.inventory, item)[0]?.let { notFit[index] = it }
+                    } catch (e: Exception) {
+                        logger.log(Level.SEVERE, "Failed to give item to ${player.name} (${player.uniqueId}), returning it to the stash", e)
+                        notFit[index] = item
+                    }
+                }
+                notFit
+            }, sync)
                 .thenComposeAsync({ notFit ->
                     if (notFit.isEmpty()) {
                         return@thenComposeAsync dumpStashUntilFull(player)
