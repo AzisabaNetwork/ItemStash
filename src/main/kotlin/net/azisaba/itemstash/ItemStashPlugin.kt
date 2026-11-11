@@ -1,5 +1,6 @@
 package net.azisaba.itemstash
 
+import net.azisaba.itemstash.util.ItemCodec
 import net.azisaba.itemstash.command.ItemStashCommand
 import net.azisaba.itemstash.command.PickupStashCommand
 import net.azisaba.itemstash.command.StashNotifyCommand
@@ -132,15 +133,15 @@ class ItemStashPlugin : JavaPlugin(), ItemStash {
                 statement.executeUpdate("LOCK TABLES `stashes` WRITE")
                 try {
                     val entries = mutableListOf<StashEntry>()
-                    connection.prepareStatement("SELECT `item`, `expires_at`, `true_amount` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at` LIMIT ?").use { stmt ->
+                    // No LIMIT: rows that cannot be decoded are skipped (and kept), so they must not use up the batch
+                    connection.prepareStatement("SELECT `item`, `expires_at`, `true_amount` FROM `stashes` WHERE `uuid` = ? ORDER BY IF(`expires_at` = -1, 1, 0), `expires_at`").use { stmt ->
                         stmt.setString(1, player.uniqueId.toString())
-                        stmt.setInt(2, DUMP_BATCH_SIZE)
                         stmt.executeQuery().use { rs ->
-                            while (rs.next()) {
+                            while (entries.size < DUMP_BATCH_SIZE && rs.next()) {
                                 val trueAmount = rs.getInt("true_amount")
                                 val bytes = rs.getBlobBytes("item")
                                 val expiresAt = rs.getLong("expires_at")
-                                val item = ItemStack.deserializeBytes(bytes)
+                                val item = ItemCodec.decode(bytes) ?: continue
                                 if (trueAmount > 0) {
                                     item.amount = trueAmount
                                 }

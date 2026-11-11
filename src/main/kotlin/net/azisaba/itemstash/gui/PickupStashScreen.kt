@@ -1,5 +1,6 @@
 package net.azisaba.itemstash.gui
 
+import net.azisaba.itemstash.util.ItemCodec
 import net.azisaba.itemstash.ItemStashPlugin
 import net.azisaba.itemstash.command.PickupStashCommand
 import net.azisaba.itemstash.sql.DBConnector
@@ -135,7 +136,7 @@ class PickupStashScreen(items: List<Map.Entry<ItemStack, Long>>) : InventoryHold
                                 stmt.executeQuery().use { rs ->
                                     while (rs.next()) {
                                         val bytes = rs.getBlobBytes("item")
-                                        if (ItemStack.deserializeBytes(bytes).isSimilar(stack) && toRemove.none { it.contentEquals(bytes) }) {
+                                        if (ItemCodec.decode(bytes)?.isSimilar(stack) == true && toRemove.none { it.contentEquals(bytes) }) {
                                             toRemove.add(bytes)
                                         }
                                     }

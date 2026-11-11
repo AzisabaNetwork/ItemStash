@@ -24,6 +24,7 @@ dependencies {
     compileOnly("xyz.acrylicstyle:StorageBox:1.6.4+1.21.11") { isTransitive = false }
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.8.1")
 }
 
 kotlin {
@@ -97,4 +98,8 @@ publishing {
             from(components["java"])
         }
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

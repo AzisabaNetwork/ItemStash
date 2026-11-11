@@ -1,5 +1,6 @@
 package net.azisaba.itemstash.command
 
+import net.azisaba.itemstash.util.ItemCodec
 import net.azisaba.itemstash.ItemStashPlugin
 import net.azisaba.itemstash.gui.PickupStashScreen
 import net.azisaba.itemstash.sql.DBConnector
@@ -56,7 +57,7 @@ class PickupStashCommand(private val plugin: ItemStashPlugin) : TabExecutor {
                                 val bytes = rs.getBlobBytes("item")
                                 val expiresAt = rs.getLong("expires_at")
                                 val trueAmount = rs.getInt("true_amount")
-                                val item = ItemStack.deserializeBytes(bytes)
+                                val item = ItemCodec.decode(bytes) ?: continue
                                 if (trueAmount > 0) {
                                     item.amount = trueAmount
                                 }

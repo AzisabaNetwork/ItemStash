@@ -1,5 +1,6 @@
 package net.azisaba.itemstash.command
 
+import net.azisaba.itemstash.util.ItemCodec
 import net.azisaba.itemstash.ItemStashPlugin
 import net.azisaba.itemstash.sql.DBConnector
 import net.azisaba.itemstash.sql.getBlobBytes
@@ -57,7 +58,7 @@ class ItemStashCommand(private val plugin: ItemStashPlugin) : TabExecutor {
                             stmt.executeQuery().use { rs ->
                                 while (rs.next()) {
                                     val bytes = rs.getBlobBytes("item")
-                                    if (ItemStack.deserializeBytes(bytes).isSimilar(stack) && toRemove.none { it.contentEquals(bytes) }) {
+                                    if (ItemCodec.decode(bytes)?.isSimilar(stack) == true && toRemove.none { it.contentEquals(bytes) }) {
                                         toRemove.add(bytes)
                                     }
                                 }
