@@ -23,8 +23,27 @@ object ItemCodec {
     private const val DATA_VERSION_1_16 = 2566
     private var failures = 0
 
-    /** @return the item, or null if the row cannot be decoded even after the legacy fix-ups */
+    /**
+     * @return the item in its normalized form (see [ItemNormalizer]: the same item gets the same data here, in
+     * AziSync, EnderChestPlus and StorageBox), or null if the row cannot be decoded even after the legacy fix-ups
+     */
     fun decode(bytes: ByteArray): ItemStack? {
+        val item = decodeRaw(bytes) ?: return null
+        return ItemNormalizer.normalize(item, legacyHideFlags(bytes))
+    }
+
+    /** The `HideFlags` of a row written before 1.20.5 (0 for current data); the DataFixer drops some of them. */
+    private fun legacyHideFlags(bytes: ByteArray): Int = try {
+        @Suppress("UNCHECKED_CAST")
+        val root = Nbt.read(bytes) as? Map<String, Nbt.Tag>
+        @Suppress("UNCHECKED_CAST")
+        val tag = root?.get("tag")?.value as? Map<String, Nbt.Tag>
+        (tag?.get("HideFlags")?.value as? Number)?.toInt() ?: 0
+    } catch (_: Exception) {
+        0
+    }
+
+    private fun decodeRaw(bytes: ByteArray): ItemStack? {
         val first = try {
             return ItemStack.deserializeBytes(bytes)
         } catch (e: Exception) {

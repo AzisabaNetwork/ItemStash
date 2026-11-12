@@ -83,7 +83,7 @@ class ItemStashPlugin : JavaPlugin(), ItemStash {
             val amount = itemStack.amount
             // the real amount is stored in `true_amount`; keep the serialized stack within its max stack size
             itemStack.amount = minOf(itemStack.maxStackSize, amount)
-            statement.setBlob(2, MariaDbBlob(itemStack.serializeAsBytes()))
+            statement.setBlob(2, MariaDbBlob(net.azisaba.itemstash.util.ItemNormalizer.normalize(itemStack).serializeAsBytes()))
             itemStack.amount = amount
             statement.setLong(3, expiresAt)
             statement.setInt(4, amount)

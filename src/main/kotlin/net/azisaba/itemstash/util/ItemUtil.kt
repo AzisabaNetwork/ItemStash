@@ -19,7 +19,7 @@ object ItemUtil {
 
     fun firstPartial(inv: Inventory, item: ItemStack?): Int {
         if (item == null) return -1
-        return inv.storageContents.indexOfFirst { it != null && it.amount < it.maxStackSize && it.isSimilar(item) }
+        return inv.storageContents.indexOfFirst { it != null && it.amount < it.maxStackSize && ItemNormalizer.isSimilar(it, item) }
     }
 
     fun addItem(inventory: Inventory, vararg items: ItemStack): HashMap<Int, ItemStack> {
