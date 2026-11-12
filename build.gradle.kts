@@ -43,6 +43,9 @@ java {
 tasks {
     processResources {
         filteringCharset = "UTF-8"
+        // without these the task counts as up to date after a version bump and plugin.yml keeps the old version
+        inputs.property("version", project.version.toString())
+        inputs.property("name", project.rootProject.name)
         from(sourceSets.main.get().resources.srcDirs) {
             include("**")
 
